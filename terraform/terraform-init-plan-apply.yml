@@ -1,5 +1,5 @@
 
-name: 'Terraform Prod Plan'
+name: 'Terraform Init-Plan-Apply'
 
 on:
   pull_request:
