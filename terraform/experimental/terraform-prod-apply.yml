@@ -1,0 +1,50 @@
+
+name: 'Terraform Prod Apply'
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+    - master 
+
+env:
+        ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+        ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        ARM_TENANT_ID:  ${{ secrets.ARM_TENANT_ID }}
+        AZCOPY_SPA_CLIENT_SECRET: ${{ secrets.AZCOPY_SPA_CLIENT_SECRET }}
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    # Checkout the repository to the GitHub Actions runner
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: Terraform Init
+      run: terraform init -backend-config=./Prod/prod.backend
+
+    # Checks that all Terraform configuration files adhere to a canonical format
+    - name: Terraform Format
+      run: terraform fmt -check
+
+    # Download plan file for use in apply workflow - azcopy10 is an alias used by the github runners for azcopy v 10
+    - name: Azcopy login
+      run: azcopy10 login --service-principal --application-id $ARM_CLIENT_ID --tenant-id=$ARM_TENANT_ID
+    - name: Azcopy download plan file
+      run: azcopy10 copy 'https://tfworkflowplanfiles.blob.core.windows.net/planfiles/tfplanfile' './tfplanfile'
+    #Terraform Apply if github event is pull request merged - other examples of if conditions left as examples
+    - name: Terraform Apply
+      #if: github.ref == 'refs/heads/master' && github.event.pull_request.merged == true
+      #if: github.action == 'closed' && github.pull_request.merged == 'true'
+      if: github.event.pull_request.merged == true
+      run: terraform apply ./tfplanfile
